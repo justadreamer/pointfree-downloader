@@ -22,17 +22,17 @@ def appendPathComponent(base,addition):
     base+=addition
     return base
 
-headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36'}
+#headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/73.0.3683.86 Safari/537.36'}
 
 def downloadTextContent(url, cookies):
     print("downloading text content from "+url)
-    resp = requests.get(url, cookies=cookies, verify=False, headers=headers)
+    resp = requests.get(url, cookies=cookies)
     return resp.text
 
 def downloadContent(url, path, cookies=None):
     print("downloading "+url+" to "+path)
     file = open(path,"wb")
-    resp = requests.get(url, stream=True, cookies=cookies, verify=False, headers=headers)
+    resp = requests.get(url, stream=True, cookies=cookies)
     file.write(resp.content)
     file.close()
 
