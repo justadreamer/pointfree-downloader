@@ -5,3 +5,5 @@ www.pointfree.co
 __pycache__
 content
 .idea/workspace.xml
+videos
+client_secrets.json
