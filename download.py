@@ -151,18 +151,22 @@ class Episode:
 
     def gdriveUploadIfNeeded(self):
         if self.gdriveUpload:
-            f = Folder('PointFree')
-            print('uploading to google drive')
-            f.upload(self.getVideoFilePath())
+            folder = Folder('PointFree')
+            file = folder.fileForName(self.fullName)
+            if file == None:
+                print('uploading to google drive')
+                folder.upload(self.getVideoFilePath())
+            else:
+                print('already uploaded')
 
     def download(self, cookies):
         print("Downloading", self)
         self.renameExistingIfNeeded()
         if self.isDownloaded():
             print(self.fullName + ' is already downloaded')
-            return
-        self.downloadChunks(cookies)
-        self.glueChunks()
+        else:
+            self.downloadChunks(cookies)
+            self.glueChunks()
         self.gdriveUploadIfNeeded()
 
 def saveUTF8Text(text,path):
