@@ -159,6 +159,12 @@ class Episode:
             else:
                 print('already uploaded')
 
+    def leaveEmptyFile(self):
+        filepath = self.getVideoFilePath()
+        os.remove(filepath)
+        fd = os.open(filepath, flags=os.O_CREAT, mode=0o644)
+        os.close(fd)
+
     def download(self, cookies):
         print("Downloading", self)
         self.renameExistingIfNeeded()
@@ -168,6 +174,7 @@ class Episode:
             self.downloadChunks(cookies)
             self.glueChunks()
         self.gdriveUploadIfNeeded()
+        self.leaveEmptyFile() # so that we have a mark that we downloaded it
 
 def saveUTF8Text(text,path):
     file = open(path, "wb")
