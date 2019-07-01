@@ -8,6 +8,8 @@ import os
 import sys
 from GoogleDriveWrapper import Folder
 from cookies import loadCookies
+from pathlib import PurePath
+import shutil
 
 CHUNKS_DIR = 'content'
 VIDEOS_DIR = 'videos'
@@ -31,10 +33,13 @@ def downloadTextContent(url, cookies):
 
 def downloadContent(url, path, cookies=None):
     print("downloading "+url+" to "+path)
-    file = open(path,"wb")
     resp = requests.get(url, stream=True, cookies=cookies)
-    file.write(resp.content)
-    file.close()
+    if int(resp.headers['Content-Length']) == os.stat(path).st_size:
+        print("chunk "+path+" already downloaded, skipping")
+    else:
+        file = open(path, "wb")
+        file.write(resp.content)
+        file.close()
 
 class Episode:
     def __init__(self,baseURL,relativeURL):
@@ -87,11 +92,6 @@ class Episode:
         dir = self.getChunksDir()
         os.system('mkdir -p ' + dir)
 
-        files = os.listdir(dir)
-        if len(files) >= len(tsFiles):
-            print("skipping already downloaded")
-            return
-
         for tsFile in tsFiles:
             tsFileURL = appendPathComponent(baseChunksSourceURL, tsFile)
             tsFilePath = os.path.join(dir, tsFile)
@@ -110,7 +110,7 @@ class Episode:
         m3uContent1 = downloadTextContent(m3uURL1, cookies=cookies)
         m3uFiles = self.getFilesFromM3U(m3uContent1)
         m3uURLBase = self.getBaseURL(m3uURL1)
-        m3uURL = os.path.join(m3uURLBase, m3uFiles[0])
+        m3uURL = os.path.join(m3uURLBase, m3uFiles[2])
         m3uContent2 = downloadTextContent(m3uURL, cookies=cookies)
         tsFiles = self.getFilesFromM3U(m3uContent2)
         print("will download the following chunks: ", tsFiles)
@@ -151,7 +151,7 @@ class Episode:
 
     def gdriveUploadIfNeeded(self):
         if self.gdriveUpload:
-            folder = Folder('PointFree')
+            folder = Folder(PurePath('Screencasts/PointFree'))
             file = folder.fileForName(self.fullName)
             if file == None:
                 print('uploading to google drive')
@@ -165,6 +165,10 @@ class Episode:
         fd = os.open(filepath, flags=os.O_CREAT, mode=0o644)
         os.close(fd)
 
+    def deleteChunks(self):
+        chunksDir = self.getChunksDir()
+        shutil.rmtree(chunksDir)
+
     def download(self, cookies):
         print("Downloading", self)
         self.renameExistingIfNeeded()
@@ -175,6 +179,7 @@ class Episode:
             self.glueChunks()
         self.gdriveUploadIfNeeded()
         self.leaveEmptyFile() # so that we have a mark that we downloaded it
+        self.deleteChunks()
 
 def saveUTF8Text(text,path):
     file = open(path, "wb")
