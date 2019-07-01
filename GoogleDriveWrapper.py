@@ -2,6 +2,7 @@ from pydrive.auth import GoogleAuth
 from pydrive.auth import RefreshError
 from pydrive.drive import GoogleDrive
 import os
+from pathlib import PurePath
 
 class Drive:
     def __init__(self):
@@ -9,7 +10,8 @@ class Drive:
 
     @property
     def auth(self):
-        credentialsFileName = 'credentials.json'
+        dir = os.path.dirname(os.path.realpath(__file__))
+        credentialsFileName = os.path.join(dir,'credentials.json')
         gauth = GoogleAuth()
         gauth.LoadCredentialsFile(credentialsFileName)
 
@@ -47,20 +49,37 @@ class File:
     def id(self):
         return self.file['id']
 
+    def delete(self):
+        self.file.Delete()
+
 
 class Folder:
-    def __init__(self, name):
+    def __init__(self, path: PurePath, createIfNotExists=False):
         self.driveWrapper = Drive()
-        self.name = name
-        self.folder = self.folder()
+        self.path = path
+        self.folder = self.folder(createIfNotExists=createIfNotExists)
         self.files = self.files()
 
-    def folder(self):
-        fileList = self.driveWrapper.fileListFrom('root')
-        filtered = list(filter(lambda f: f['title']==self.name, fileList))
-        if len(filtered)>0:
-            return filtered[0]
-        return None
+    def folder(self, createIfNotExists=False):
+        parent_id = 'root'
+        folder = {'id': parent_id} #by default we are root folder
+        for component in self.path.parts:
+            fileList = self.driveWrapper.fileListFrom(parent_id)
+            filtered = list(filter(lambda f: f['title']==component, fileList))
+            if len(filtered)>0:
+                folder = filtered[0]
+            elif createIfNotExists:
+                print(f"creating {component} folder")
+                folder = self.createFolder(parent_id, component)
+            parent_id = folder['id'] #for intermediate folders
+
+        return folder
+
+    def createFolder(self, parent_id, name):
+        metadata = { 'parents': [ { "kind": "drive#fileLink", "id": parent_id } ], 'title': name, 'mimeType': 'application/vnd.google-apps.folder' }
+        file = self.driveWrapper.drive.CreateFile(metadata=metadata)
+        file.Upload()
+        return file
 
     def files(self):
         fileList = self.driveWrapper.fileListFrom(self.folder['id'])
@@ -95,8 +114,10 @@ class Folder:
             if serverFile.fileSize == os.stat(path).st_size:
                 print(serverFile.title + " already uploaded")
                 return
+            else:
+                serverFile.delete() #we are going to replace this file
 
-        metadata = { 'parents': [ {"kind": "drive#fileLink", "id": self.folder['id'] } ], 'title': fileName }
+        metadata = { 'parents': [ { "kind": "drive#fileLink", "id": self.folder['id'] } ], 'title': fileName }
         file = self.driveWrapper.drive.CreateFile(metadata=metadata)
         file.Upload()
         file.SetContentFile(path)
