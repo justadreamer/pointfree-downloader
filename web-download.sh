@@ -16,5 +16,5 @@ cd -
 zip -r pointfree.zip  www.pointfree.co
 
 # upload
-../google-drive-wrapper/upload.sh pointfree.zip PointFree
+../google-drive-wrapper/upload.sh pointfree.zip Screencasts/PointFree
 
