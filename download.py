@@ -34,7 +34,7 @@ def downloadTextContent(url, cookies):
 def downloadContent(url, path, cookies=None):
     print("downloading "+url+" to "+path)
     resp = requests.get(url, stream=True, cookies=cookies)
-    if int(resp.headers['Content-Length']) == os.stat(path).st_size:
+    if os.path.exists(path) and int(resp.headers['Content-Length']) == os.stat(path).st_size:
         print("chunk "+path+" already downloaded, skipping")
     else:
         file = open(path, "wb")
@@ -49,6 +49,7 @@ class Episode:
         self.shortName = self.getShortName()
         self.ext = 'm2ts'
         self.gdriveUpload = False
+        self.leaveEmptyFile = False
 
     def __str__(self):
         return "Episode: " + self.fullName
@@ -110,7 +111,14 @@ class Episode:
         m3uContent1 = downloadTextContent(m3uURL1, cookies=cookies)
         m3uFiles = self.getFilesFromM3U(m3uContent1)
         m3uURLBase = self.getBaseURL(m3uURL1)
-        m3uURL = os.path.join(m3uURLBase, m3uFiles[2])
+
+        highQualityM3UFile = m3uFiles[0]
+        for m3uFile in m3uFiles:
+            if "high" in m3uFile:
+                highQualityM3UFile = m3uFile
+                break
+
+        m3uURL = os.path.join(m3uURLBase, highQualityM3UFile)
         m3uContent2 = downloadTextContent(m3uURL, cookies=cookies)
         tsFiles = self.getFilesFromM3U(m3uContent2)
         print("will download the following chunks: ", tsFiles)
@@ -159,11 +167,12 @@ class Episode:
             else:
                 print('already uploaded')
 
-    def leaveEmptyFile(self):
-        filepath = self.getVideoFilePath()
-        os.remove(filepath)
-        fd = os.open(filepath, flags=os.O_CREAT, mode=0o644)
-        os.close(fd)
+    def leaveEmptyFileIfNeeded(self):
+        if self.leaveEmptyFile:
+            filepath = self.getVideoFilePath()
+            os.remove(filepath)
+            fd = os.open(filepath, flags=os.O_CREAT, mode=0o644)
+            os.close(fd)
 
     def deleteChunks(self):
         chunksDir = self.getChunksDir()
@@ -178,7 +187,7 @@ class Episode:
             self.downloadChunks(cookies)
             self.glueChunks()
         self.gdriveUploadIfNeeded()
-        self.leaveEmptyFile() # so that we have a mark that we downloaded it
+        self.leaveEmptyFileIfNeeded() # so that we have a mark that we downloaded it
         self.deleteChunks()
 
 def saveUTF8Text(text,path):
@@ -219,6 +228,10 @@ def main():
     if '--gdrive-upload' in sys.argv:
         for episode in episodes:
             episode.gdriveUpload = True
+
+    if '--leave-empty-file' in sys.argv:
+        for episode in episodes:
+            episode.leaveEmptyFile = True
 
     if '--last' in sys.argv or '--latest' in sys.argv:
         print("Downloading last episode only")
