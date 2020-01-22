@@ -61,7 +61,7 @@ class PointFreeStrategy(Strategy):
 
     # this is an overridable method
     def downloadCommand(self, url, outputFilePath):
-        command = 'youtube-dl --no-check-certificate --add-header "Referer:https://www.pointfree.co/"  --output ' + outputFilePath + ' ' + url
+        command = 'youtube-dl -c --no-check-certificate --add-header "Referer:https://www.pointfree.co/"  --output ' + outputFilePath + ' ' + url
         return command
 
 
@@ -91,7 +91,7 @@ class SwiftTalkStrategy(Strategy):
         return pageURL
 
     def downloadCommand(self, url, outputFilePath):
-        command = 'youtube-dl --no-check-certificate --cookies ' + self.cookieFileName + ' --output ' + outputFilePath + ' ' + url
+        command = 'youtube-dl -c --no-check-certificate --cookies ' + self.cookieFileName + ' --output ' + outputFilePath + ' ' + url
         return command
 
 class Episode:
@@ -108,7 +108,7 @@ class Episode:
 
         # computed and cached:
         self.name = self.getEpisodeName()
-        self.fileName = self.getFileName()
+        self.fileName = self.getFileNameMP4()
 
     def __str__(self):
         return "Episode: " + self.name
@@ -120,8 +120,11 @@ class Episode:
         components = self.relativeURL.split('/')
         return components[len(components)-1]
 
-    def getFileName(self):
-        return self.name + '.' + self.ext
+    def getFileNameMP4(self):
+        return self.name + '.mp4'
+
+    def getFileNameM2TS(self):
+        return self.name + '.m2ts'
 
     def getVideoDir(self):
         videoDir = os.path.expanduser(self.videoDir)
@@ -132,7 +135,7 @@ class Episode:
         return videoDir
 
     def getVideoFilePath(self):
-        fullFileName = self.getFileName()
+        fullFileName = self.getFileNameMP4()
         fullFileName = os.path.join(self.getVideoDir(), fullFileName)
         return fullFileName
 
@@ -156,8 +159,9 @@ class Episode:
 
     def isGdriveAlreadyUploaded(self):
         folder = Folder(PurePath(self.strategy.GDRIVE_PATH))
-        file = folder.fileForName(self.getFileName())
-        return file is not None
+        filemp4 = folder.fileForName(self.getFileNameMP4())
+        filem2ts = folder.fileForName(self.getFileNameM2TS())
+        return (filemp4 is not None) or (filem2ts is not None)
 
     # this method downloads the episode to the local folder, then uploads to Google Drive,
     # unless something else is specified

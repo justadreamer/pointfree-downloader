@@ -13,9 +13,9 @@ class TestEpisode(TestCase):
         self.assertEqual(self.episode.shortName, 'S01E01')
 
     def test_getFullFileName(self):
-        shortFilename = self.episode.getFileName(self.episode.shortName)
+        shortFilename = self.episode.getFileNameMP4(self.episode.shortName)
         self.assertEqual('S01E01.mp4', shortFilename)
-        fullFilename = self.episode.getFileName(self.episode.name)
+        fullFilename = self.episode.getFileNameMP4(self.episode.name)
         self.assertEqual('S01E01-good.mp4', fullFilename)
 
     def test_getFullFilePath(self):

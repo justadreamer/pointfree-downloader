@@ -1,14 +1,10 @@
-## Ubuntu Setup
-```
-sudo apt-get update
-sudo apt-get install python3-pip
-sudo pip3 install --upgrade pip
-sudo pip3 install bs4
-sudo pip3 install pydrive #for google drive
-```
+## Debian/Ubuntu Startup Script
+
+See `debian-startup-script.sh`
 
 ## Cookie Format
-`cookies.txt` should be present in the working dir and have the first line:
+`cookies-pointfree.txt` and `cookies-swifttalk.txt` should be present in the working dir and have the first line:
+
 ```
 # Netscape HTTP Cookie File
 ```
