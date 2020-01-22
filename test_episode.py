@@ -1,5 +1,5 @@
 from unittest import TestCase
-from download import *
+from grab import *
 
 class TestEpisode(TestCase):
     def setUp(self):
