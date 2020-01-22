@@ -10,9 +10,40 @@ from GoogleDriveWrapper import Folder
 from cookies import loadCookies
 from pathlib import PurePath
 
-BASE_URL = 'https://www.pointfree.co/'
-VIDEOS_DIR = 'videos'
-GDRIVE_PATH = 'Screencasts/PointFree'
+class PointFreeStrategy:
+    def __init__(self, cookies):
+        self.BASE_URL = 'https://www.pointfree.co/'
+        self.VIDEOS_DIR = '~/Movies/PointFree'
+        self.GDRIVE_PATH = 'Screencasts/PointFree'
+        self.cookies = cookies
+
+    def parseEpisodesPointFree(self):
+        episodesPage = downloadTextContent(self.BASE_URL, self.cookies)
+        soup = BeautifulSoup(episodesPage, "html.parser")
+        episodes = []
+        for h3 in soup.find_all('h1'):
+            a = h3.find('a')
+            if a is None:
+                return None
+            relativeURL = a['href']
+            episode = Episode(self, relativeURL)
+            episodes.append(episode)
+        return episodes
+
+    # this is an overridable method
+    def makeEpisodeVideoURL(self, relativePageURL):
+        pageURL = appendPathComponent(self.BASE_URL, relativePageURL)
+        markup = downloadTextContent(pageURL, self.cookies)
+        soup = BeautifulSoup(markup, "html.parser")
+        iframe = soup.find("iframe")
+        sourceURL = iframe["src"]
+        return sourceURL
+
+    # this is an overridable method
+    def downloadCommand(self, url, outputFilePath):
+        command = 'youtube-dl --no-check-certificate --add-header "Referer:https://www.pointfree.co/"  --output ' + outputFilePath + ' ' + url
+        return command
+
 
 def appendPathComponent(base,addition):
     if not base[len(base)-1] == '/':
@@ -27,15 +58,15 @@ def downloadTextContent(url, cookies):
     return resp.text
 
 class Episode:
-    def __init__(self,baseURL,relativeURL):
+    def __init__(self, strategy, relativeURL):
         # set from outside:
-        self.baseURL = baseURL
+        self.strategy = strategy
         self.relativeURL = relativeURL
         self.ext = 'mp4'
         self.gdriveUpload = True # by default it is true
         self.removeLocal = False
         self.forceReload = False
-        self.videoDir = VIDEOS_DIR
+        self.videoDir = strategy.VIDEOS_DIR
 
         # computed and cached:
         self.name = self.getEpisodeName()
@@ -50,12 +81,6 @@ class Episode:
     def getEpisodeName(self):
         components = self.relativeURL.split('/')
         return components[len(components)-1]
-
-    def getBaseURL(self,url):
-        lastslashpos = url.rfind('/')
-        if lastslashpos == len(url)-1:
-            lastsplashpos = url.rfind('/',0,len(url)-2)
-        return url[0:lastslashpos]
 
     def getFileName(self):
         return self.name + '.' + self.ext
@@ -77,7 +102,7 @@ class Episode:
     def gdriveUploadIfNeeded(self):
         if self.gdriveUpload:
             if not self.isGdriveAlreadyUploaded():
-                folder = Folder(PurePath(GDRIVE_PATH))
+                folder = Folder(PurePath(self.strategy.GDRIVE_PATH))
                 print('Uploading to gdrive')
                 folder.upload(self.getVideoFilePath())
             else:
@@ -89,15 +114,15 @@ class Episode:
             os.remove(self.getVideoFilePath())
 
     def isGdriveAlreadyUploaded(self):
-        folder = Folder(PurePath(GDRIVE_PATH))
+        folder = Folder(PurePath(self.strategy.GDRIVE_PATH))
         file = folder.fileForName(self.getFileName())
         return file is not None
 
     # this method downloads the episode to the local folder, then uploads to Google Drive,
     # unless something else is specified
-    def grab(self, cookies):
+    def grab(self):
         print("Grabbing", self)
-        url = self.makeEpisodeVideoURL(cookies)
+        url = self.strategy.makeEpisodeVideoURL(self.relativeURL)
 
         if self.isDownloaded() and (not self.forceReload):
             print(self.name + ' is already downloaded')
@@ -105,44 +130,18 @@ class Episode:
             if self.gdriveUpload and self.isGdriveAlreadyUploaded() and (not self.forceReload):
                 print(self.name + ' has already been uploaded to GDrive')
             else:
-                command = self.downloadCommand(url)
+                command = self.strategy.downloadCommand(url, self.getVideoFilePath())
                 os.system(command)
 
         self.gdriveUploadIfNeeded()
         self.removeLocalFileIfNeeded()
 
-    # this is an overridable method
-    def makeEpisodeVideoURL(self, cookies):
-        pageURL = appendPathComponent(self.baseURL,self.relativeURL)
-        markup = downloadTextContent(pageURL,cookies)
-        soup = BeautifulSoup(markup, "html.parser")
-        iframe = soup.find("iframe")
-        sourceURL = iframe["src"]
-        return sourceURL
-
-    # this is an overridable method
-    def downloadCommand(self, url):
-        command = 'youtube-dl --no-check-certificate --add-header "Referer:https://www.pointfree.co/"  --output ' + self.getVideoFilePath() + ' ' + url
-        return command
-
-def parseEpisodesPointFree(cookies):
-    baseURL = BASE_URL
-    episodesPage = downloadTextContent(baseURL,cookies)
-    soup = BeautifulSoup(episodesPage, "html.parser")
-    episodes = []
-    for h3 in soup.find_all('h1'):
-        a = h3.find('a')
-        if a is None:
-            return None
-        relativeURL = a['href']
-        episode = Episode(baseURL,relativeURL)
-        episodes.append(episode)
-    return episodes
-
 def main():
     cookieFileName = os.path.join(os.getcwd(), 'cookies.txt')
     cookies = loadCookies(cookieFileName)
-    episodes = parseEpisodesPointFree(cookies)
+
+    strategy = PointFreeStrategy(cookies)
+    episodes = strategy.parseEpisodesPointFree()
 
     if episodes is None or len(episodes) == 0:
         print("Error parsing episodes, check your cookies")
@@ -171,7 +170,7 @@ def main():
         episode.gdriveUpload = gdriveUpload
         episode.removeLocal = removeLocal
         episode.forceReload = forceReload
-        episode.grab(cookies)
+        episode.grab()
 
 if __name__ == "__main__":
     main()
