@@ -10,14 +10,34 @@ from GoogleDriveWrapper import Folder
 from cookies import loadCookies
 from pathlib import PurePath
 
-class PointFreeStrategy:
-    def __init__(self, cookies):
+# global functions:
+def appendPathComponent(base,addition):
+    if not base[len(base)-1] == '/':
+        base += '/'
+    if addition[0]=='/':
+        addition = addition[1:]
+    base+=addition
+    return base
+
+def downloadTextContent(url, cookies):
+    resp = requests.get(url, cookies=cookies)
+    return resp.text
+
+class Strategy:
+    def loadCookies(self):
+        cookieFilePath = os.path.join(os.getcwd(), self.cookieFileName)
+        self.cookies = loadCookies(cookieFilePath)
+
+
+class PointFreeStrategy(Strategy):
+    def __init__(self):
         self.BASE_URL = 'https://www.pointfree.co/'
         self.VIDEOS_DIR = '~/Movies/PointFree'
         self.GDRIVE_PATH = 'Screencasts/PointFree'
-        self.cookies = cookies
+        self.cookieFileName = 'cookies-pointfree.txt'
+        self.loadCookies()
 
-    def parseEpisodesPointFree(self):
+    def parseEpisodes(self):
         episodesPage = downloadTextContent(self.BASE_URL, self.cookies)
         soup = BeautifulSoup(episodesPage, "html.parser")
         episodes = []
@@ -45,17 +65,34 @@ class PointFreeStrategy:
         return command
 
 
-def appendPathComponent(base,addition):
-    if not base[len(base)-1] == '/':
-        base += '/'
-    if addition[0]=='/':
-        addition = addition[1:]
-    base+=addition
-    return base
+class SwiftTalkStrategy(Strategy):
+    def __init__(self):
+        self.BASE_URL = 'https://talk.objc.io/'
+        self.VIDEOS_DIR = '~/Movies/SwiftTalk'
+        self.GDRIVE_PATH = 'Screencasts/SwiftTalk'
+        self.cookieFileName = 'cookies-swifttalk.txt'
+        self.loadCookies()
 
-def downloadTextContent(url, cookies):
-    resp = requests.get(url, cookies=cookies)
-    return resp.text
+    def parseEpisodes(self):
+        episodesPage = downloadTextContent(self.BASE_URL + '/episodes', self.cookies)
+        soup = BeautifulSoup(episodesPage, "html.parser")
+        episodes = []
+        for h3 in soup.find_all('h3'):
+            a = h3.find('a')
+            if a is None:
+                return None
+            relativeURL = a['href']
+            episode = Episode(self, relativeURL)
+            episodes.append(episode)
+        return episodes
+
+    def makeEpisodeVideoURL(self, relativePageURL):
+        pageURL = appendPathComponent(self.BASE_URL, relativePageURL)
+        return pageURL
+
+    def downloadCommand(self, url, outputFilePath):
+        command = 'youtube-dl --no-check-certificate --cookies ' + self.cookieFileName + ' --output ' + outputFilePath + ' ' + url
+        return command
 
 class Episode:
     def __init__(self, strategy, relativeURL):
@@ -65,7 +102,8 @@ class Episode:
         self.ext = 'mp4'
         self.gdriveUpload = True # by default it is true
         self.removeLocal = False
-        self.forceReload = False
+        self.forceDownload = False
+        self.forceUpload = False
         self.videoDir = strategy.VIDEOS_DIR
 
         # computed and cached:
@@ -87,9 +125,11 @@ class Episode:
 
     def getVideoDir(self):
         videoDir = os.path.expanduser(self.videoDir)
-        if os.path.isabs(videoDir):
-            return videoDir
-        return os.path.join(os.getcwd(), videoDir)
+        if not os.path.isabs(videoDir):
+            videoDir = os.path.join(os.getcwd(), videoDir)
+        if not os.path.exists(videoDir):
+            os.makedirs(videoDir, exist_ok = True)
+        return videoDir
 
     def getVideoFilePath(self):
         fullFileName = self.getFileName()
@@ -101,12 +141,13 @@ class Episode:
 
     def gdriveUploadIfNeeded(self):
         if self.gdriveUpload:
-            if not self.isGdriveAlreadyUploaded():
+            if not self.isGdriveAlreadyUploaded() or self.forceUpload:
                 folder = Folder(PurePath(self.strategy.GDRIVE_PATH))
-                print('Uploading to gdrive')
-                folder.upload(self.getVideoFilePath())
+                print('Uploading to GDrive')
+                if os.path.exists(self.getVideoFilePath()):
+                    folder.upload(self.getVideoFilePath())
             else:
-                print('Already uploaded to gdrive')
+                print('Already uploaded to GDrive and no --force-upload flag provided')
 
     def removeLocalFileIfNeeded(self):
         if self.removeLocal:
@@ -124,11 +165,11 @@ class Episode:
         print("Grabbing", self)
         url = self.strategy.makeEpisodeVideoURL(self.relativeURL)
 
-        if self.isDownloaded() and (not self.forceReload):
-            print(self.name + ' is already downloaded')
+        if self.isDownloaded() and (not self.forceDownload):
+            print(self.name + ' is already downloaded locally')
         else:
-            if self.gdriveUpload and self.isGdriveAlreadyUploaded() and (not self.forceReload):
-                print(self.name + ' has already been uploaded to GDrive')
+            if self.gdriveUpload and self.isGdriveAlreadyUploaded() and not self.forceDownload:
+                print(self.name + ' has already been uploaded to GDrive, not downloading locally since no --force-download flag provided')
             else:
                 command = self.strategy.downloadCommand(url, self.getVideoFilePath())
                 os.system(command)
@@ -137,11 +178,12 @@ class Episode:
         self.removeLocalFileIfNeeded()
 
 def main():
-    cookieFileName = os.path.join(os.getcwd(), 'cookies.txt')
-    cookies = loadCookies(cookieFileName)
+    if '--swift-talk' in sys.argv:
+        strategy = SwiftTalkStrategy()
+    else:
+        strategy = PointFreeStrategy()
 
-    strategy = PointFreeStrategy(cookies)
-    episodes = strategy.parseEpisodesPointFree()
+    episodes = strategy.parseEpisodes()
 
     if episodes is None or len(episodes) == 0:
         print("Error parsing episodes, check your cookies")
@@ -163,13 +205,15 @@ def main():
 
     gdriveUpload = not ('--no-gdrive-upload' in sys.argv)  # by default we upload to gdrive
     removeLocal = '--remove-local' in sys.argv  # by default we leave the local files as is
-    forceReload = '--force-reload' in sys.argv  # by default we don't force reloading, if the file is already uploaded to gdrive f.e.
+    forceUpload = '--force-upload' in sys.argv  # by default we don't force reloading, if the file is already uploaded to gdrive f.e.
+    forceDownload = '--force-download' in sys.argv  # by default we don't force reloading, if the file is already uploaded to gdrive f.e.
 
     # we formed the list of episodes to grab, now we specify the settings and grab them
     for episode in episodes:
         episode.gdriveUpload = gdriveUpload
         episode.removeLocal = removeLocal
-        episode.forceReload = forceReload
+        episode.forceUpload = forceUpload
+        episode.forceDownload = forceDownload
         episode.grab()
 
 if __name__ == "__main__":
