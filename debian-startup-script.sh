@@ -1,4 +1,5 @@
 # installing dependencies, cloning repo (can be used to prepare a boot disk image)
+sudo apt-get update
 sudo apt-get install -y git
 sudo apt-get install -y youtube-dl
 sudo apt-get install -y python3-pip
