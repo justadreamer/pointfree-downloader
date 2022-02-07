@@ -123,9 +123,6 @@ class Episode:
     def getFileNameMP4(self):
         return self.name + '.mp4'
 
-    def getFileNameM2TS(self):
-        return self.name + '.m2ts'
-
     def getVideoDir(self):
         videoDir = os.path.expanduser(self.videoDir)
         if not os.path.isabs(videoDir):
@@ -160,8 +157,8 @@ class Episode:
     def isGdriveAlreadyUploaded(self):
         folder = Folder(PurePath(self.strategy.GDRIVE_PATH))
         filemp4 = folder.fileForName(self.getFileNameMP4())
-        filem2ts = folder.fileForName(self.getFileNameM2TS())
-        return (filemp4 is not None) or (filem2ts is not None)
+        fileSize = os.stat(self.getVideoFilePath()).st_size
+        return filemp4 is not None and not filemp4.file['labels']['trashed'] and filemp4.fileSize == fileSize
 
     # this method downloads the episode to the local folder, then uploads to Google Drive,
     # unless something else is specified

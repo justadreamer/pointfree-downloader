@@ -1,6 +1,6 @@
-from pydrive.auth import GoogleAuth
-from pydrive.auth import RefreshError
-from pydrive.drive import GoogleDrive
+from pydrive2.auth import GoogleAuth
+from pydrive2.auth import RefreshError
+from pydrive2.drive import GoogleDrive
 import os
 from pathlib import PurePath
 
