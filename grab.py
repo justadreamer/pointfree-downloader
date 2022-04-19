@@ -61,7 +61,7 @@ class PointFreeStrategy(Strategy):
 
     # this is an overridable method
     def downloadCommand(self, url, outputFilePath):
-        command = 'youtube-dl -c --no-check-certificate --add-header "Referer:https://www.pointfree.co/"  --output ' + outputFilePath + ' ' + url
+        command = f'youtube-dl -c --no-check-certificate --add-header "Referer:https://www.pointfree.co/"  --cookies {self.cookieFileName} --output {outputFilePath} {url}'
         return command
 
 

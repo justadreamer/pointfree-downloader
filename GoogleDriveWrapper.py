@@ -6,23 +6,9 @@ from pathlib import PurePath
 
 class Drive:
     def __init__(self):
-        self.drive = GoogleDrive(self.auth)
-
-    @property
-    def auth(self):
-        dir = os.path.dirname(os.path.realpath(__file__))
-        credentialsFileName = os.path.join(dir,'credentials.json')
         gauth = GoogleAuth()
-        gauth.LoadCredentialsFile(credentialsFileName)
-
-        if gauth.access_token_expired:
-            try:
-                gauth.Refresh()
-            except RefreshError:
-                gauth.CommandLineAuth()
-                gauth.SaveCredentialsFile(credentialsFileName)
-
-        return gauth
+        gauth.CommandLineAuth()
+        self.drive = GoogleDrive(gauth)
 
     def fileListFrom(self,root):
         q = "'" + root + "' in parents"
@@ -113,7 +99,7 @@ class Folder:
         if serverFile is not None:
             if serverFile.fileSize == os.stat(path).st_size:
                 print(serverFile.title + " already uploaded")
-                return
+                return serverFile.file
             else:
                 serverFile.delete() #we are going to replace this file
 
@@ -122,3 +108,5 @@ class Folder:
         file.Upload()
         file.SetContentFile(path)
         file.Upload()
+        return file
+
